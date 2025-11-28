@@ -21,10 +21,12 @@ cycle_limits = {
 MACHINE_LIST = [1, 60]
 
 while True:
-
+    print("----New Alert----")
     for m in MACHINE_LIST:
-        print("----New Alert----")
+        
         values = client.read_machine(m, MACHINES)
+        
+        
         if not values:
             continue
 
