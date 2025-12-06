@@ -1,20 +1,12 @@
 import streamlit as st
 
-# ---------- MACHINE STATUS VALUE ----------
-# Replace this with your real data source
-machine_status = 0   # 1 = running, 0 = stopped
+# ---------- MACHINE STATUS ----------
+
+machine_status = 0  
 
 def temperature_bar(label: str, present_value: float, set_value: float):
-    """
-    Draw a styled temperature progress bar with dynamic color thresholds.
     
-    Colors:
-        - Green: within 5%
-        - Yellow: 5–10% lower than set value
-        - Red: >10% lower than set value
-    """
-
-    # Avoid division by zero
+    
     if set_value == 0:
         percent = 0
         diff = 0
@@ -23,7 +15,7 @@ def temperature_bar(label: str, present_value: float, set_value: float):
         percent = max(0, min(percent, 1))
         diff = (set_value - present_value) / set_value * 100
 
-    # Determine bar color
+    # bar color
     if diff <= 5:
         color = "#00c853"        # green
     elif diff <= 10:
@@ -31,7 +23,7 @@ def temperature_bar(label: str, present_value: float, set_value: float):
     else:
         color = "#d50000"        # red
 
-    # Render component
+    
     st.markdown(
         f"""
         <div style="background-color:#1b1b1c;padding:20px;border-radius:10px;margin-top:10px;border: 4px solid #283347;">
@@ -62,11 +54,18 @@ st.markdown("""
 }
 
 /* Dashboard Title */
+.dashboard-bar{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .dashboard-title {
     font-size: 28px;
     font-weight: 700;
     color: white;
     margin-bottom: 4px;
+    
 }
 
 /* Subtitle */
@@ -90,8 +89,8 @@ st.markdown("""
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 16px;
-    border-radius: 40px;
+    padding: 6px 14px;
+    border-radius: 10px;
     background-color: #1b263b;
     border: 4px solid #415a77;
     color: #e0e6ed;
@@ -102,9 +101,21 @@ st.markdown("""
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 16px;
-    border-radius: 40px;
-    background-color: orange;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background-color: #ed750c;
+    border: 4px solid #415a77;
+    color: #e0e6ed;
+    font-size: 15px;
+}
+
+.cycle-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background-color: blue;
     border: 4px solid #415a77;
     color: #e0e6ed;
     font-size: 15px;
@@ -112,9 +123,10 @@ st.markdown("""
 
 /* Status badge (base class) */
 .status-badge {
-    padding: 6px 15px;
-    border-radius: 40px;
-    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 10px;
+    border: 4px solid #415a77;
+    font-size: 15px;
     color: white;
     text-align: center;
 }
@@ -203,8 +215,7 @@ def metric_card(name: str, value):
     """, unsafe_allow_html=True)
 
 
-# ---------- TITLE ----------
-st.markdown('<div class="dashboard-title">Machine 1</div>', unsafe_allow_html=True)
+
 
 
 
@@ -214,22 +225,31 @@ if machine_status == 1:
 else:
     status_html = '<div class="status-badge status-stopped">Stopped</div>'
 
-
-
+col1,col2 = st.columns([9,1])
 # ---------- TOP BAR ----------
-st.markdown(f"""
-<div class="top-bar">
-    <div class="machine-id-pill">
-        <span class="material-icons-outlined">confirmation_number</span>
-        #389A61816
+with col2:
+    with st.popover(""):
+        st.markdown("Hello")
+    
+
+with col1:
+    st.markdown(f"""
+    <div class="top-bar">
+        <div class="dashboard-title">
+        Machine 1
+        </div>
+        <div class="machine-id-pill">
+            #389A61816
+        </div>
+        <div class="mold-id-pill">
+            8oz Bottle
+        </div>
+        <div class="cycle-pill">
+            20s
+        </div>
+        {status_html}
     </div>
-    <div class="mold-id-pill">
-        <span class="material-icons-outlined">liquor</span>
-        8oz Bottle
-    </div>
-    {status_html}
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 
 
@@ -311,22 +331,22 @@ with tab2:
     row2 = st.columns(2)
     row3 = st.columns(2)
     with row1[0]:
-        temperature_bar("Barrel Nozzle", present_value=285, set_value=285)
+        temperature_bar("Nozzle", present_value=285, set_value=285)
         
     with row1[1]:
-        temperature_bar("Barrel Front", present_value=285, set_value=285)
+        temperature_bar("Front", present_value=285, set_value=285)
     
     with row2[0]:
-        temperature_bar("Barrel Middle", present_value=285, set_value=285)
+        temperature_bar("Middle", present_value=285, set_value=285)
     
     with row2[1]:
-        temperature_bar("Barrel Rear Front", present_value=285, set_value=285)
+        temperature_bar("Rear Front", present_value=285, set_value=285)
     
     with row3[0]:
-        temperature_bar("Barrel Rear Rear", present_value=285, set_value=285)
+        temperature_bar("Rear Rear", present_value=285, set_value=285)
     
     with row3[1]:
-        temperature_bar("Oil Temperature", present_value=285, set_value=285)
+        temperature_bar("Oil", present_value=285, set_value=285)
     
 #Injection-------------------------------------------------------------------------    
 with tab3:

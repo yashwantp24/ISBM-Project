@@ -92,7 +92,7 @@ status_class_map = {
 st.markdown("<h1 style='text-align:center;'>Axium Packaging</h1>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center;'>Plant 1</h2>", unsafe_allow_html=True)
 
-# --- FULL CARD BLOCK ---
+
 html = """
 <div class="card">
     <div class="card-title">
@@ -102,12 +102,12 @@ html = """
     <div class="machine-grid">
 """
 
-# Add machines
+#Machines
 for machine in machines:
     css_class = status_class_map[machine_status[machine]]
     html += f'<div class="{css_class}">{machine}</div>'
 
-# Close HTML
+
 html += """
     </div>
 </div>
