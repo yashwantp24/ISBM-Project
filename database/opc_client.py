@@ -12,21 +12,34 @@ from database.scaling import SCALING_MAP
 
 class OPCClient:
     def __init__(self, url: str, scale_map: dict = None):
+        self.url = url
         self.client = Client(url)
-        self.client.connect()
+        self.connected = False
         self.scale_map = scale_map or {}
 
+        self.connect()  # connect once
+
     def connect(self):
+        """Connect only if not already connected"""
+        if self.connected:
+            return
+
         try:
-            self.client = Client(self.url)
             self.client.connect()
-            print("Connected")
+            self.connected = True
+            print("OPC UA Connected")
         except Exception as e:
-            print("Connection error:", e)
-        
+            self.connected = False
+            raise RuntimeError(f"OPC UA connection failed: {e}")
+
     def disconnect(self):
-        if self.client:
-            self.client.disconnect()
+        """Gracefully close session"""
+        if self.client and self.connected:
+            try:
+                self.client.disconnect()
+            finally:
+                self.connected = False
+                self.client = None
 
     def read_machine(self, machine_id: int, tag_map: dict):
         """Reads all tags for one machine, applies scaling, and cleans PV/SV if idle."""

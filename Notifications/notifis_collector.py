@@ -18,7 +18,7 @@ cycle_limits = {
     "60": 1
 }
 
-MACHINE_LIST = [1, 60]
+MACHINE_LIST = [60]
 
 while True:
     print("----New Alert----")

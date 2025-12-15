@@ -117,9 +117,9 @@ def check_notifications(machine_id, values, cycle_limits):
         oil_temperature_sv = values.get("Oil Temperature SV")
         oil_temperature_pv = values.get("Oil Temperature PV")
         diff = oil_temperature_sv - oil_temperature_pv
-        if diff <= 1.5:
+        if diff <= 10.5:
             alerts.append(
                 f"Machine {machine_id}:Oil Temperature is high,the Oil Temperature PV is at {oil_temperature_pv}.The Oil Temperature SV is set at {oil_temperature_sv} "
             )
-
-    return alerts
+    alert_flag = 1 if alerts else 0
+    return alerts,alert_flag

@@ -1,8 +1,32 @@
+
 import streamlit as st
+import pandas as pd
+from streamlit_autorefresh import st_autorefresh
+
+from pathlib import Path
+import sys
+
+project_root = Path(__file__).resolve().parent.parent.parent  
+sys.path.insert(0, str(project_root))
+from Notifications.notifs import check_notifications
+from database.opc_client import OPCClient
+from database.tags import MACHINES, OPC_SERVER_URL
+from mold_map import get_bottle_type
+
+if "OPCClient" not in st.session_state:
+    st.session_state.OPCClient = OPCClient(OPC_SERVER_URL)
+    st.session_state.OPCClient.connect()
+
+client = st.session_state.OPCClient
+
+
+values = client.read_machine(60,MACHINES)
+Prod_qty=values.get("Production Quantity")
 
 # ---------- MACHINE STATUS ----------
+machine_status = values.get("Auto Cycle")  
 
-machine_status = 0  
+st.write()
 
 def temperature_bar(label: str, present_value: float, set_value: float):
     
@@ -141,6 +165,12 @@ st.markdown("""
     background-color: #FF4B4B;
 }
 
+/* Alerts */
+.status-alerts {
+    background-color: Yellow;
+    color: Black;
+}
+
 .card-title {
     font-size: 28px;  /* Increase from original 22px */
     font-weight: 700;
@@ -215,43 +245,86 @@ def metric_card(name: str, value):
     """, unsafe_allow_html=True)
 
 
+# Initialize once
+if "mold_num" not in st.session_state:
+    st.session_state.mold_num = 0
+if "cycle_lim" not in st.session_state:
+    st.session_state.cycle_lim = 0
 
 
 
 
-# ---------- STATUS LOGIC ----------
-if machine_status == 1:
-    status_html = '<div class="status-badge status-running">Running</div>'
-else:
-    status_html = '<div class="status-badge status-stopped">Stopped</div>'
-
-col1,col2 = st.columns([9,1])
+col1,col2,col3 = st.columns([10.2,1.6,1.9])
 # ---------- TOP BAR ----------
+form_values = {
+    "mold_num":None,
+    "Cycle_lim":None
+}
+
 with col2:
-    with st.popover(""):
-        st.markdown("Hello")
-    
+    with st.popover("Edit"):
+        st.write("Enter the values")
+
+        with st.form("edit_form"):
+            form_values["mold_num"] = st.number_input(
+                "Mold Number"
+            )
+            form_values["Cycle_lim"] = st.number_input(
+                "Cycle Limit",
+            )
+
+            st.form_submit_button("Save")
+
+            
+
+                
+            
+with col3:
+    with st.popover("Alerts"):
+        st.markdown("Alerts")
+        cycle_limits = {
+                "60": form_values["Cycle_lim"]
+            }
+        alerts,alert_flag = check_notifications(60, values, cycle_limits)
+        for a in alerts:
+            
+            st.write("ALERT:", a)
+
 
 with col1:
     st.markdown(f"""
     <div class="top-bar">
         <div class="dashboard-title">
-        Machine 1
+        Machine 1 - 70DPW V4
         </div>
+    """, unsafe_allow_html=True)
+
+bottle_type = get_bottle_type(int(form_values["mold_num"])) or "Unknown"
+
+
+# ---------- STATUS LOGIC ----------
+if alert_flag == 1:
+    status_html = '<div class="status-badge status-alerts">Alerts</div>'
+elif machine_status == 1:
+    status_html = '<div class="status-badge status-running">Running</div>'
+else:
+    status_html = '<div class="status-badge status-stopped">Stopped</div>'
+
+
+st.markdown(f"""
+    <div class="top-bar">
         <div class="machine-id-pill">
             #389A61816
         </div>
         <div class="mold-id-pill">
-            8oz Bottle
+            {bottle_type}
         </div>
         <div class="cycle-pill">
-            20s
+            Cycle Limit:{form_values['Cycle_lim']}s
         </div>
         {status_html}
     </div>
     """, unsafe_allow_html=True)
-
-
 
 
 st.write("")  # spacing
@@ -275,33 +348,34 @@ with tab1:
 
     # Card 1: Production Count
     with row1[0]:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <span class="material-icons-outlined metric-icon">inventory_2</span>
             Production Count
-            <div class="metric-value">12,854</div>
+            <div>
+            <div class="metric-value">{values.get("Production Quantity")}</div>
             <div class="metric-desc">Total bottles today</div>
         </div>
         """, unsafe_allow_html=True)
 
     # Card 2: Efficiency
     with row1[1]:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <span class="material-icons-outlined metric-icon">show_chart</span>
             Cycle Time
-            <div class="metric-value">21.2s</div>
+            <div class="metric-value">{values.get("Cycle Time")}</div>
             <div class="metric-desc">Overall equipment effectiveness</div>
         </div>
         """, unsafe_allow_html=True)
 
-    # Card 3: Uptime
+    # Card 3: Dry Cycle
     with row2[0]:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <span class="material-icons-outlined metric-icon">schedule</span>
             Dry Cycle Time
-            <div class="metric-value">6s</div>
+            <div class="metric-value">{values.get("Dry Cycle Time")}</div>
             <div class="metric-desc">Today's runtime</div>
         </div>
         """, unsafe_allow_html=True)
@@ -331,22 +405,22 @@ with tab2:
     row2 = st.columns(2)
     row3 = st.columns(2)
     with row1[0]:
-        temperature_bar("Nozzle", present_value=285, set_value=285)
+        temperature_bar("Nozzle", present_value=values.get("Barrel Nozzle PV"), set_value=values.get("Barrel Nozzle SV"))
         
     with row1[1]:
-        temperature_bar("Front", present_value=285, set_value=285)
+        temperature_bar("Front", present_value=values.get("Barrel Front PV"), set_value=values.get("Barrel Front SV"))
     
     with row2[0]:
-        temperature_bar("Middle", present_value=285, set_value=285)
+        temperature_bar("Middle", present_value=values.get("Barrel Middle PV"), set_value=values.get("Barrel Middle SV"))
     
     with row2[1]:
-        temperature_bar("Rear Front", present_value=285, set_value=285)
+        temperature_bar("Rear Front", present_value=values.get("Barrel Rear Front PV"), set_value=values.get("Barrel Rear Front SV"))
     
     with row3[0]:
-        temperature_bar("Rear Rear", present_value=285, set_value=285)
+        temperature_bar("Rear Rear", present_value=values.get("Barrel Rear Rear PV"), set_value=values.get("Barrel Rear Rear SV"))
     
     with row3[1]:
-        temperature_bar("Oil", present_value=285, set_value=285)
+        temperature_bar("Oil", present_value=values.get("Oil Temperature PV"), set_value=values.get("Oil Temperature SV"))
     
 #Injection-------------------------------------------------------------------------    
 with tab3:
@@ -363,23 +437,23 @@ with tab3:
     row2 = st.columns(3)
 
     with row1[0]:
-        metric_card("Injection Time", 10)
+        metric_card("Injection Time", values.get("Injection Time"))
 
     
     with row1[1]:
-        metric_card("Cooling Time", 10)
+        metric_card("Cooling Time", values.get("Cooling Time"))
 
     with row1[2]:
-        metric_card("Screw Charge Time", 10)
+        metric_card("Screw Charge Time", values.get("Charge Time"))
 
     with row2[0]:
-        metric_card("Shot Size", 10)
+        metric_card("Shot Size", values.get("Shot Size SV"))
         
     with row2[1]:
-        metric_card("P-V Time", 10)
+        metric_card("P-V Time", values.get("P-V SV"))
         
     with row2[2]:
-        metric_card("V-P", 10)
+        metric_card("V-P", values.get("V-P Time PV"))
         
 #Blow-------------------------------------------------------------------------------------------------       
 with tab4:
@@ -399,25 +473,25 @@ with tab4:
 
     
     with row1[0]:
-        metric_card("Blow Time", 10)
+        metric_card("Blow Time", values.get("Blow Time"))
 
     
     with row1[1]:
-        metric_card("Stretch Time", 10)
+        metric_card("Stretch Time", values.get("Stretch Time"))
 
     
     with row1[2]:
-        metric_card("Primary Blow A", 10)
+        metric_card("Primary Blow A", values.get("Primary Blow Time A"))
 
     
     with row2[0]:
-        metric_card("Primary Blow B", 10)
+        metric_card("Primary Blow B", values.get("Primary Blow Time B"))
         
     with row2[1]:
-        metric_card("Secondary Blow A", 10)
+        metric_card("Secondary Blow A", values.get("Secondary Blow Time A"))
         
     with row2[2]:
-        metric_card("Secondary Blow B", 10)
+        metric_card("Secondary Blow B", values.get("Secondary Blow Time B"))
     
 
 #Pressures------------------------------------------------------------------------------------------------
@@ -438,25 +512,25 @@ with tab5:
 
     
     with row1[0]:
-        metric_card("Screw Charge", 10)
+        metric_card("Screw Charge", values.get("Screw Pressure Monitor"))
 
     # Card 2: Efficiency
     with row1[1]:
-        metric_card("Screw Set 1", 10)
+        metric_card("Screw Set 1", values.get("Screw Set Data 1 Pressure"))
 
     # Card 3: Uptime
     with row1[2]:
-        metric_card("Screw Set 2", 10)
+        metric_card("Screw Set 2", values.get("Screw Set Data 2 Pressure"))
 
     # Card 4: Cycle Rate
     with row2[0]:
-        metric_card("Main RAM", 10)
+        metric_card("Main RAM", values.get("Main Ram FW Pressure"))
         
     with row2[1]:
-        metric_card("Blow Mold CL", 10)
+        metric_card("Blow Mold CL", values.get("Blow Mold CL FA Pressure"))
         
     with row2[2]:
-        metric_card("Stretch Unit UP", 10)
+        metric_card("Stretch Unit UP", values.get("Stretch Unit UP FA Pressure"))
 
 
 #Production Quantity--------------------------------------------------------------------------------------------
@@ -468,6 +542,24 @@ with tab6:
     </div>
     <div class="machine-grid">
 """, unsafe_allow_html=True)
+    CSV_FILE = "production_data.csv"
+
+    df = pd.read_csv(CSV_FILE)
+    df.columns = df.columns.str.strip()  # Fix column names
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    # Pivot so each machine_id becomes a column
+    df_pivot = df.pivot(index="timestamp", columns="machine_id", values="production")
+
+    # Sort by timestamp
+    df_pivot = df_pivot.sort_index()
+
+    # Calculate hourly production
+    df_hourly = df_pivot.diff().fillna(0)
+
+    # Plot for machine 60
+    st.bar_chart(df_hourly[60])
     
     
 #Downtime----------------------------------------------------------------------------------------------------
@@ -480,3 +572,7 @@ with tab7:
     </div>
     <div class="machine-grid">
 """, unsafe_allow_html=True)
+    
+    
+    
+st_autorefresh(interval=5000, key="refresh")

@@ -2666,7 +2666,7 @@ MACHINES = {
         "Primary Blow Time B":"ns=2;s=Machine 60.Primary Blow Time B",
         "Secondary Blow Time A":"ns=2;s=Machine 60.Secondary Blow Time A",
         "Secondary Blow Time B":"ns=2;s=Machine 60.Secondary Blow Time B",
-        "P-V SV":"ns=2;s=Machine 60.P-V SV",
+        "P-V SV":"ns=2;s=Machine 60.V-P Time SV",
         "Shot Size SV":"ns=2;s=Machine 60.Shot Size SV",
         "Screw Set Data 1 Pressure":"ns=2;s=Machine 60.Screw Set Data 1 Pressure",
         "Screw Set Data 2 Pressure":"ns=2;s=Machine 60.Screw Set Data 2 Pressure",
