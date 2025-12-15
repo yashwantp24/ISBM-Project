@@ -545,17 +545,17 @@ with tab6:
     CSV_FILE = "production_data.csv"
 
     df = pd.read_csv(CSV_FILE)
-    df.columns = df.columns.str.strip()  # Fix column names
+    df.columns = df.columns.str.strip()
 
     df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-    # Pivot so each machine_id becomes a column
+    
     df_pivot = df.pivot(index="timestamp", columns="machine_id", values="production")
 
-    # Sort by timestamp
+    
     df_pivot = df_pivot.sort_index()
 
-    # Calculate hourly production
+    
     df_hourly = df_pivot.diff().fillna(0)
 
     # Plot for machine 60
