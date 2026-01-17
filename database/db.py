@@ -13,24 +13,29 @@ def get_connection():
         port=54321
     )
 
-
-def insert_machine_row(machine_id, mold_id, auto_cycle, blow_time, data_dict):
+def insert_machine_row(machine_id, mold_id, data_dict):
     conn = get_connection()
     cur = conn.cursor()
 
+    # Extract timestamp from data_dict
+    ts = data_dict.pop("timestamp")  # ISO string
+
     cur.execute("""
         INSERT INTO machine_data (
-            machine_id, timestamp, mold_id, auto_cycle, blow_time, data
-        ) VALUES (%s, %s, %s, %s, %s, %s)
+            machine_id,
+            timestamp,
+            mold_id,
+            data
+        )
+        VALUES (%s, %s, %s, %s)
     """, (
         machine_id,
-        datetime.now(),
+        ts,               # ISO timestamp
         mold_id,
-        auto_cycle,
-        blow_time,
         json.dumps(data_dict)
     ))
 
     conn.commit()
     cur.close()
     conn.close()
+

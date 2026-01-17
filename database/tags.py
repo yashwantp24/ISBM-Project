@@ -2751,7 +2751,28 @@ MACHINES = {
         "Cycle Time":"ns=2;s=Machine 60.Cycle Time",
         "V-P Time PV":"ns=2;s=Machine 60.V-P Time PV",
         "Charge Time":"ns=2;s=Machine 60.Charge Time",
+        "Injection Mold CL FA":"ns=2;s=Machine 60.Injection Mold CL FA",
+        "Injection Mold OP FA":"ns=2;s=Machine 60.Injection Mold OP FA",
+        "Lip Mold CL FA":"ns=2;s=Machine 60.Lip Mold CL FA",
+        "Lip Mold OP FA":"ns=2;s=Machine 60.Lip Mold OP FA",
+        "Blow Mold CL FA":"ns=2;s=Machine 60.Blow Mold CL FA",
+        "Blow Mold OP FA":"ns=2;s=Machine 60.Blow Mold OP FA",
         "Dry Cycle Time":"ns=2;s=Machine 60.Dry Cycle Time",
+        "Injection Mold CL":"ns=2;s=Machine 60.Injection Mold CL",
+        "Injection Mold OP":"ns=2;s=Machine 60.Injection Mold OP",
+        "Blow Core DW":"ns=2;s=Machine 60.Blow Core DW",
+        "Blow Core UP":"ns=2;s=Machine 60.Blow Core UP",
+        "Bottom UP":"ns=2;s=Machine 60.Bottom UP",
+        "Bottom DW":"ns=2;s=Machine 60.Bottom DW",
+        "Blow Mold CL":"ns=2;s=Machine 60.Blow Mold CL",
+        "Blow Mold OP":"ns=2;s=Machine 60.Blow Mold OP",
+        "Blow Core Hold FW":"ns=2;s=Machine 60.Blow Core Hold FW",
+        "Stretch Unit DW FA":"ns=2;s=Machine 60.Stretch Unit DW FA",
+        "Stretch Unit UP FA":"ns=2;s=Machine 60.Stretch Unit UP FA",
+        "Stretch Unit DW":"ns=2;s=Machine 60.Stretch Unit DW",
+        "Stretch Unit UP":"ns=2;s=Machine 60.Stretch Unit UP",
+        "Blow Mold M":"ns=2;s= Machine 60.Blow Mold M",
+        "Blow Mold C":"ns=2;s=Machine 60.Blow Mold C",
         "Barrel Rear Front PV":"ns=2;s=Machine 60.Barrel Rear Front PV",
         "Barrel Middle PV":"ns=2;s=Machine 60.Barrel Middle PV",
         "Barrel Front PV":"ns=2;s=Machine 60.Barrel Front PV",
@@ -3885,4 +3906,5 @@ MACHINES = {
 }
 
 }
+
 

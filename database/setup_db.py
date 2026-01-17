@@ -12,9 +12,8 @@ def create_tables():
             id SERIAL PRIMARY KEY,
             machine_id INT NOT NULL,
             timestamp TIMESTAMP NOT NULL,
-            mold_id TEXT,
-            auto_cycle INT,
-            blow_time FLOAT,
+            mold_id INT,
+            
             
             -- all other tags stored inside JSON
             data JSONB

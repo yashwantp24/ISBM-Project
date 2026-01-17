@@ -76,7 +76,7 @@ class OPCClient:
         values["timestamp"] = datetime.now()
 
         # return if condition met
-        if values.get("Auto Cycle") != 1 or values.get("Blow Time", 0) <= 0:
-            return None
+        #if values.get("Auto Cycle") != 1 or values.get("Blow Time", 0) <= 0:
+        # return None
 
         return values

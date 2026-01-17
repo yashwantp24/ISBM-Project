@@ -1,4 +1,7 @@
+import sys
+import os
 
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import streamlit as st
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
@@ -12,6 +15,12 @@ from Notifications.notifs import check_notifications
 from database.opc_client import OPCClient
 from database.tags import MACHINES, OPC_SERVER_URL
 from mold_map import get_bottle_type
+import information
+
+m=61
+
+data = information.get_machine(m)
+
 
 if "OPCClient" not in st.session_state:
     st.session_state.OPCClient = OPCClient(OPC_SERVER_URL)
@@ -20,14 +29,14 @@ if "OPCClient" not in st.session_state:
 client = st.session_state.OPCClient
 
 
-values = client.read_machine(60,MACHINES)
+values = client.read_machine(m,MACHINES)
 Prod_qty=values.get("Production Quantity")
 
 # ---------- MACHINE STATUS ----------
 machine_status = values.get("Auto Cycle")  
 
 st.write()
-
+#-------------Temperature----------------------
 def temperature_bar(label: str, present_value: float, set_value: float):
     
     
@@ -256,36 +265,38 @@ if "cycle_lim" not in st.session_state:
 
 col1,col2,col3 = st.columns([10.2,1.6,1.9])
 # ---------- TOP BAR ----------
-form_values = {
-    "mold_num":None,
-    "Cycle_lim":None
-}
+
 
 with col2:
     with st.popover("Edit"):
         st.write("Enter the values")
 
         with st.form("edit_form"):
-            form_values["mold_num"] = st.number_input(
+            mold_num= st.number_input(
                 "Mold Number"
             )
-            form_values["Cycle_lim"] = st.number_input(
+            cycle_lim = st.number_input(
                 "Cycle Limit",
             )
 
-            st.form_submit_button("Save")
-
+            submitted = st.form_submit_button("Save")
+        if submitted:
+            information.update_machine(
+                number=m,   
+                mold=mold_num,
+                cyc_limit=cycle_lim
+            )
+        
             
 
-                
             
 with col3:
     with st.popover("Alerts"):
         st.markdown("Alerts")
         cycle_limits = {
-                "60": form_values["Cycle_lim"]
+                m: data["cyc_limit"]
             }
-        alerts,alert_flag = check_notifications(60, values, cycle_limits)
+        alerts,alert_flag = check_notifications(m, values, cycle_limits)
         for a in alerts:
             
             st.write("ALERT:", a)
@@ -295,11 +306,11 @@ with col1:
     st.markdown(f"""
     <div class="top-bar">
         <div class="dashboard-title">
-        Machine 1 - 70DPW V4
+        Machine {m} - 70DPW V4
         </div>
     """, unsafe_allow_html=True)
 
-bottle_type = get_bottle_type(int(form_values["mold_num"])) or "Unknown"
+bottle_type = get_bottle_type(int(data["mold"])) or "Unknown"
 
 
 # ---------- STATUS LOGIC ----------
@@ -320,7 +331,7 @@ st.markdown(f"""
             {bottle_type}
         </div>
         <div class="cycle-pill">
-            Cycle Limit:{form_values['Cycle_lim']}s
+            Cycle Limit:{data["cyc_limit"]}s
         </div>
         {status_html}
     </div>
@@ -559,7 +570,7 @@ with tab6:
     df_hourly = df_pivot.diff().fillna(0)
 
     # Plot for machine 60
-    st.bar_chart(df_hourly[60])
+    st.bar_chart(df_hourly[m])
     
     
 #Downtime----------------------------------------------------------------------------------------------------

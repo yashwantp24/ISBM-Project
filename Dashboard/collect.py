@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 import sys
+import streamlit as st
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
@@ -20,20 +21,20 @@ client = OPCClient(OPC_SERVER_URL)
 
 MACHINES_TO_LOG = [60]
 
-
+@st.cache_data(ttl=60)
 def get_total_production_for_all_machines():
     totals = {}
 
     for machine_id in MACHINES_TO_LOG:
-        machine_data = client.read_machine(machine_id, MACHINES)
+        machine_data = client.read_machine(machine_id, MACHINES).get("Production Quantity")
         totals[machine_id] = (
-            machine_data.get("Production Quantity")
+            machine_data
             if machine_data else None
         )
 
     return totals
 
-
+@st.cache_data(ttl=60)
 def save_hourly_totals():
     totals = get_total_production_for_all_machines()
     timestamp = datetime.now().replace(minute=0, second=0, microsecond=0)
