@@ -22,8 +22,8 @@ client = OPCClient(OPC_SERVER_URL)
 
 # Find your Account SID and Auth Token at twilio.com/console
 # and set the environment variables. See http://twil.io/secure
-account_sid = 'ACffa27c71c934e5a9c90e93ba45a53b6d'
-auth_token = '04874f98100d8cef657b45ffccd53bf1'
+account_sid = 
+auth_token =
 client_w = Client(account_sid, auth_token)
 
 
