@@ -115,7 +115,7 @@ def get_all_machine_statuses(_client, machines_tuple):
 
 
 # Define machines
-machines = [58,59,60,61]
+machines = [1,22,23,25,26,57,58,59,60,61,62,68]
 
 # Status CSS class mapping
 status_class_map = {

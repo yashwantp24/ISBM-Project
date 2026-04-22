@@ -1,13 +1,14 @@
 import os
+import sys
+import time
+from pathlib import Path
+
 import certifi
 import pip_system_certs
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
-import os
 from twilio.rest import Client
-import sys
-from pathlib import Path
 
 # root path
 project_root = Path(__file__).parent.parent
@@ -16,14 +17,23 @@ sys.path.insert(0, str(project_root))
 from database.opc_client import OPCClient
 from database.tags import MACHINES, OPC_SERVER_URL
 from Notifications.notifs import check_notifications
-import time
 
 client = OPCClient(OPC_SERVER_URL)
 
-# Find your Account SID and Auth Token at twilio.com/console
-# and set the environment variables. See http://twil.io/secure
-account_sid = 'ACffa27c71c934e5a9c90e93ba45a53b6d'
-auth_token = '04874f98100d8cef657b45ffccd53bf1'
+# Credentials must be supplied via environment variables.
+# Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM, TWILIO_TO before running.
+# See http://twil.io/secure for rotation guidance.
+account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+auth_token  = os.environ.get("TWILIO_AUTH_TOKEN")
+twilio_from = os.environ.get("TWILIO_FROM", "whatsapp:+14155238886")
+twilio_to   = os.environ.get("TWILIO_TO")
+
+if not (account_sid and auth_token and twilio_to):
+    sys.exit(
+        "Missing Twilio configuration. Set TWILIO_ACCOUNT_SID, "
+        "TWILIO_AUTH_TOKEN, and TWILIO_TO environment variables before running."
+    )
+
 client_w = Client(account_sid, auth_token)
 
 
@@ -46,8 +56,8 @@ while True:
         if alerts:
             message = client_w.messages.create(
                 body=str(alerts),
-                from_='whatsapp:+14155238886',
-                to='whatsapp:+12176932291'
+                from_=twilio_from,
+                to=twilio_to,
             )
             print("Sent:", message.sid)
 

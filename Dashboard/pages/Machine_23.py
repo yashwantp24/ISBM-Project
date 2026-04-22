@@ -17,7 +17,7 @@ from database.tags import MACHINES, OPC_SERVER_URL
 from mold_map import get_bottle_type
 import information
 
-m=59
+m=23
 
 data = information.get_machine(m)
 

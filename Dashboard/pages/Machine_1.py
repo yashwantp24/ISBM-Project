@@ -17,7 +17,7 @@ from database.tags import MACHINES, OPC_SERVER_URL
 from mold_map import get_bottle_type
 import information
 
-m=60
+m=1
 
 data = information.get_machine(m)
 
@@ -302,27 +302,6 @@ with col3:
             
             st.write("ALERT:", a)
 
-with col4:
-    with st.popover("Defects"):
-        st.write("Enter the Defect")
-
-        with st.form("edit_defect_form"):
-            
-            defect = st.selectbox("Type of defect",("Bubble","String","Scratch","Shot Neck","Hole","Soft Spot","Cavity","Dip","Cloudy","Contamination"))
-            date = st.date_input("Enter the Date", value="today")
-            start_time = st.time_input("Enter Start Time",value="now")
-            end_time = st.time_input("Enter the End Time",value="now")
-            
-
-            submitted = st.form_submit_button("Save")
-        if submitted:
-            information.update_machine(
-                number=m,   
-                mold=mold_num,
-                cyc_limit=cycle_lim
-            )
-
-
 with col1:
     st.markdown(f"""
     <div class="top-bar">
@@ -570,29 +549,355 @@ with tab6:
     st.markdown("""<div class="card">
     <div class="card-title">
         <span class="material-icons-outlined general-icon">inventory_2</span>
-        Production Quantity
+        Production &amp; Downtime
     </div>
     <div class="machine-grid">
 """, unsafe_allow_html=True)
-    CSV_FILE = "production_data.csv"
 
-    df = pd.read_csv(CSV_FILE)
-    df.columns = df.columns.str.strip()
+    # ── DB helpers (read-only, no trackers needed) ─────────────────────────────
+    def _get_live_production(machine_id):
+        from database.db import get_connection
+        from datetime import date
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT COALESCE(total_bottles, 0), mold_id
+                   FROM production_live
+                   WHERE machine_id = %s AND date = %s""",
+                (machine_id, date.today())
+            )
+            row = cur.fetchone()
+            return {"bottles": int(row[0]) if row else 0,
+                    "mold_id": row[1] if row else None}
+        except Exception:
+            return {"bottles": 0, "mold_id": None}
+        finally:
+            cur.close(); conn.close()
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    def _get_live_downtime(machine_id):
+        from database.db import get_connection
+        from datetime import date
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT COALESCE(total_downtime_seconds, 0)
+                   FROM daily_downtime_live
+                   WHERE machine_id = %s AND date = %s""",
+                (machine_id, date.today())
+            )
+            row = cur.fetchone()
+            total_sec = float(row[0]) if row else 0.0
 
-    
-    df_pivot = df.pivot(index="timestamp", columns="machine_id", values="production")
+            cur.execute(
+                """SELECT COUNT(*) FROM downtime_events
+                   WHERE machine_id = %s AND DATE(start_time) = %s""",
+                (machine_id, date.today())
+            )
+            event_count = cur.fetchone()[0]
+            return {"total_sec": total_sec, "event_count": event_count}
+        except Exception:
+            return {"total_sec": 0.0, "event_count": 0}
+        finally:
+            cur.close(); conn.close()
 
-    
-    df_pivot = df_pivot.sort_index()
+    def _get_shift_downtime(machine_id):
+        """
+        Return downtime seconds and event count for all three shifts today.
+        - Active shift → shift_downtime_live  (live, updating)
+        - Past shifts  → daily_archive columns (written at shift boundary, permanent)
+        """
+        from database.db import get_connection
+        from datetime import date, datetime
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            today = date.today()
+            now_h = datetime.now().hour
+            cur_shift = 1 if now_h < 8 else 2 if now_h < 16 else 3
 
-    
-    df_hourly = df_pivot.diff().fillna(0)
+            result = {1: (0.0, 0), 2: (0.0, 0), 3: (0.0, 0)}
 
-    # Plot for machine 60
-    st.bar_chart(df_hourly[m])
-    
+            # Pull completed shifts from daily_archive
+            cur.execute(
+                """SELECT
+                       shift_1_downtime_seconds, shift_1_events,
+                       shift_2_downtime_seconds, shift_2_events,
+                       shift_3_downtime_seconds, shift_3_events
+                   FROM daily_archive
+                   WHERE machine_id = %s AND date = %s""",
+                (machine_id, today)
+            )
+            row = cur.fetchone()
+            if row:
+                result[1] = (float(row[0]), int(row[1]))
+                result[2] = (float(row[2]), int(row[3]))
+                result[3] = (float(row[4]), int(row[5]))
+
+            # Override active shift with live value (more up-to-date)
+            cur.execute(
+                """SELECT total_downtime_seconds, event_count
+                   FROM shift_downtime_live
+                   WHERE machine_id = %s AND date = %s AND shift = %s""",
+                (machine_id, today, cur_shift)
+            )
+            live_row = cur.fetchone()
+            if live_row:
+                result[cur_shift] = (float(live_row[0]), int(live_row[1]))
+
+            return result
+        except Exception:
+            return {1: (0.0, 0), 2: (0.0, 0), 3: (0.0, 0)}
+        finally:
+            cur.close(); conn.close()
+
+    def _get_live_rate(machine_id):
+        """Bottles/hr from production_live — approximated from today's count
+        vs elapsed time since midnight, as a simple fallback.
+        For the rolling 1-hr rate use the in-process ProductionCounter instead."""
+        from database.db import get_connection
+        from datetime import date, datetime
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT COALESCE(total_bottles, 0)
+                   FROM production_live
+                   WHERE machine_id = %s AND date = %s""",
+                (machine_id, date.today())
+            )
+            row = cur.fetchone()
+            bottles = int(row[0]) if row else 0
+            now = datetime.now()
+            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            elapsed_hr = (now - midnight).total_seconds() / 3600
+            rate = round(bottles / elapsed_hr, 1) if elapsed_hr > 0 else 0.0
+            return rate
+        except Exception:
+            return 0.0
+        finally:
+            cur.close(); conn.close()
+
+    def _get_archive(machine_id, limit=30):
+        from database.db import get_connection
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT date, mold_id, total_bottles,
+                          total_downtime_seconds, downtime_event_count,
+                          shift_1_downtime_seconds, shift_1_events,
+                          shift_2_downtime_seconds, shift_2_events,
+                          shift_3_downtime_seconds, shift_3_events
+                   FROM daily_archive
+                   WHERE machine_id = %s
+                   ORDER BY date DESC
+                   LIMIT %s""",
+                (machine_id, limit)
+            )
+            rows = cur.fetchall()
+            return rows
+        except Exception:
+            return []
+        finally:
+            cur.close(); conn.close()
+
+    # ── Fetch data ─────────────────────────────────────────────────────────────
+    prod_live    = _get_live_production(m)
+    dt_live      = _get_live_downtime(m)
+    rate_live    = _get_live_rate(m)
+    archive      = _get_archive(m, limit=30)
+    shift_dt     = _get_shift_downtime(m)
+
+    bottles_today = prod_live["bottles"]
+    total_sec     = dt_live["total_sec"]
+    event_count   = dt_live["event_count"]
+
+    dt_min  = round(total_sec / 60, 1)
+    dt_hr   = round(total_sec / 3600, 2)
+
+    # Availability vs elapsed time today
+    from datetime import datetime as _dt
+    _now       = _dt.now()
+    _midnight  = _now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elapsed_sec = (_now - _midnight).total_seconds()
+    avail_pct   = round(max(0.0, (elapsed_sec - total_sec) / elapsed_sec * 100), 1) if elapsed_sec > 0 else 100.0
+
+    # Status colour for downtime card
+    dt_color = "#00c853" if dt_min < 30 else "#ffd600" if dt_min < 90 else "#d50000"
+    avail_color = "#00c853" if avail_pct >= 95 else "#ffd600" if avail_pct >= 85 else "#d50000"
+
+    # ── Live metric cards ──────────────────────────────────────────────────────
+    row1 = st.columns(2)
+    row2 = st.columns(2)
+
+    with row1[0]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <span class="material-icons-outlined metric-icon">inventory_2</span>
+            Bottles Produced Today
+            <div class="metric-value">{bottles_today:,}</div>
+            <div class="metric-desc">Total since midnight</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with row1[1]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <span class="material-icons-outlined metric-icon">speed</span>
+            Production Rate
+            <div class="metric-value">{rate_live:,.0f}</div>
+            <div class="metric-desc">Bottles per hour (today avg)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with row2[0]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <span class="material-icons-outlined metric-icon">timer_off</span>
+            Downtime Today
+            <div class="metric-value" style="color:{dt_color};">{dt_min} min</div>
+            <div class="metric-desc">{dt_hr} hrs &nbsp;|&nbsp; {event_count} event{'s' if event_count != 1 else ''}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with row2[1]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <span class="material-icons-outlined metric-icon">check_circle</span>
+            Availability
+            <div class="metric-value" style="color:{avail_color};">{avail_pct}%</div>
+            <div class="metric-desc">Based on elapsed time today</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.write("")
+
+    # ── Shift downtime breakdown ───────────────────────────────────────────────
+    from datetime import datetime as _dt2
+    _now2       = _dt2.now()
+    _cur_shift  = 1 if _now2.hour < 8 else 2 if _now2.hour < 16 else 3
+    SHIFT_LABELS = {
+        1: ("Shift 1", "00:00 – 08:00"),
+        2: ("Shift 2", "08:00 – 16:00"),
+        3: ("Shift 3", "16:00 – 00:00"),
+    }
+
+    st.markdown("""
+    <div style="color:white; font-size:20px; font-weight:700; margin:16px 0 12px 0;">
+        <span class="material-icons-outlined" style="vertical-align:middle;color:#4ea8de;">schedule</span>
+        &nbsp;Downtime by Shift
+    </div>
+    """, unsafe_allow_html=True)
+
+    shift_cols = st.columns(3)
+    for idx, shift_num in enumerate([1, 2, 3]):
+        secs, ev = shift_dt[shift_num]
+        s_min    = round(secs / 60, 1)
+        s_hr     = round(secs / 3600, 2)
+        lbl, hrs = SHIFT_LABELS[shift_num]
+        is_active = (shift_num == _cur_shift)
+
+        s_color = "#00c853" if s_min < 30 else "#ffd600" if s_min < 90 else "#d50000"
+        border  = "#4ea8de" if is_active else "#283347"
+        ev_label = "events" if ev != 1 else "event"
+
+        active_badge = (
+            '<span style="font-size:11px;background:#4ea8de;color:#000;'
+            'border-radius:4px;padding:2px 6px;margin-left:8px;font-weight:700;">ACTIVE</span>'
+            if is_active else ""
+        )
+
+        card_html = (
+            '<div class="metric-card" style="border-color:' + border + ';">'
+            '<div style="display:flex;align-items:center;margin-bottom:6px;">'
+            '<span class="material-icons-outlined metric-icon">timer_off</span>'
+            '&nbsp;<span style="font-size:16px;color:#c8d3df;">' + lbl +
+            ' &nbsp;<span style="color:#9db2c4;">' + hrs + '</span></span>'
+            + active_badge +
+            '</div>'
+            '<div class="metric-value" style="color:' + s_color + ';">' + str(s_min) + ' min</div>'
+            '<div class="metric-desc">' + str(s_hr) + ' hrs &nbsp;|&nbsp; ' + str(ev) + ' ' + ev_label + '</div>'
+            '</div>'
+        )
+
+        with shift_cols[idx]:
+            st.markdown(card_html, unsafe_allow_html=True)
+
+    st.write("")
+
+    # ── History table ──────────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="color:white; font-size:20px; font-weight:700; margin-bottom:12px;">
+        <span class="material-icons-outlined" style="vertical-align:middle;color:#4ea8de;">table_chart</span>
+        &nbsp;Daily History
+    </div>
+    """, unsafe_allow_html=True)
+
+    if archive:
+        archive_df = pd.DataFrame(archive, columns=[
+            "Date", "Mold ID", "Bottles Produced",
+            "Downtime (sec)", "Downtime Events",
+            "S1 Downtime (sec)", "S1 Events",
+            "S2 Downtime (sec)", "S2 Events",
+            "S3 Downtime (sec)", "S3 Events",
+        ])
+
+        # Derived columns
+        archive_df["Downtime (min)"]    = (archive_df["Downtime (sec)"] / 60).round(1)
+        archive_df["Availability (%)"]  = archive_df["Downtime (sec)"].apply(
+            lambda s: round(max(0, (86400 - s) / 86400 * 100), 1)
+        )
+        archive_df["S1 DT (min)"] = (archive_df["S1 Downtime (sec)"] / 60).round(1)
+        archive_df["S2 DT (min)"] = (archive_df["S2 Downtime (sec)"] / 60).round(1)
+        archive_df["S3 DT (min)"] = (archive_df["S3 Downtime (sec)"] / 60).round(1)
+
+        archive_df["Date"]             = pd.to_datetime(archive_df["Date"]).dt.strftime("%Y-%m-%d")
+        archive_df["Bottles Produced"] = archive_df["Bottles Produced"].apply(lambda x: f"{int(x):,}")
+
+        display_df = archive_df[[
+            "Date", "Mold ID", "Bottles Produced",
+            "Downtime (min)", "Downtime Events", "Availability (%)",
+            "S1 DT (min)", "S1 Events",
+            "S2 DT (min)", "S2 Events",
+            "S3 DT (min)", "S3 Events",
+        ]]
+
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Date":             st.column_config.TextColumn("Date"),
+                "Mold ID":          st.column_config.NumberColumn("Mold ID"),
+                "Bottles Produced": st.column_config.TextColumn("Bottles"),
+                "Downtime (min)":   st.column_config.NumberColumn("DT Total (min)", format="%.1f"),
+                "Downtime Events":  st.column_config.NumberColumn("Events"),
+                "Availability (%)": st.column_config.ProgressColumn(
+                                        "Availability",
+                                        format="%.1f%%",
+                                        min_value=0, max_value=100,
+                                    ),
+                "S1 DT (min)":      st.column_config.NumberColumn("S1 DT (min)", format="%.1f",
+                                        help="Shift 1  00:00–08:00"),
+                "S1 Events":        st.column_config.NumberColumn("S1 Events",
+                                        help="Shift 1  00:00–08:00"),
+                "S2 DT (min)":      st.column_config.NumberColumn("S2 DT (min)", format="%.1f",
+                                        help="Shift 2  08:00–16:00"),
+                "S2 Events":        st.column_config.NumberColumn("S2 Events",
+                                        help="Shift 2  08:00–16:00"),
+                "S3 DT (min)":      st.column_config.NumberColumn("S3 DT (min)", format="%.1f",
+                                        help="Shift 3  16:00–00:00"),
+                "S3 Events":        st.column_config.NumberColumn("S3 Events",
+                                        help="Shift 3  16:00–00:00"),
+            }
+        )
+    else:
+        st.info("No archive data yet. Daily records are written at midnight.")
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
     
 #Downtime----------------------------------------------------------------------------------------------------
     
@@ -605,161 +910,8 @@ with tab7:
     <div class="machine-grid">
 """, unsafe_allow_html=True)
     
-    # Function to fetch anomaly predictions from database
-    def get_anomaly_predictions(machine_id, limit=100):
-        """Fetch recent anomaly predictions from database"""
-        from database.db import get_connection
-        conn = get_connection()
-        cur = conn.cursor()
-        
-        try:
-            cur.execute("""
-                SELECT 
-                    timestamp,
-                    anomaly_score,
-                    alert_level,
-                    is_defect
-                FROM anomaly_predictions
-                WHERE machine_id = %s
-                ORDER BY timestamp DESC
-                LIMIT %s
-            """, (machine_id, limit))
-            
-            rows = cur.fetchall()
-            
-            if rows:
-                df = pd.DataFrame(rows, columns=['timestamp', 'anomaly_score', 'alert_level', 'is_defect'])
-                df = df.sort_values('timestamp')  # Sort ascending for chart
-                return df
-            else:
-                return pd.DataFrame(columns=['timestamp', 'anomaly_score', 'alert_level', 'is_defect'])
-        
-        except Exception as e:
-            st.error(f"Database error: {e}")
-            return pd.DataFrame(columns=['timestamp', 'anomaly_score', 'alert_level', 'is_defect'])
-        
-        finally:
-            cur.close()
-            conn.close()
-    
-    # Fetch predictions from database
-    predictions_df = get_anomaly_predictions(m, limit=100)
-    
-    # Get current/latest prediction
-    if len(predictions_df) > 0:
-        latest = predictions_df.iloc[-1]
-        anomaly_score = latest['anomaly_score']
-        defect_pct = anomaly_score * 100  # Convert to percentage
-        alert_level = latest['alert_level']
-        is_defect = latest['is_defect']
-        
-        # Calculate statistics
-        total_predictions = len(predictions_df)
-        alert_counts = predictions_df['alert_level'].value_counts().to_dict()
-        defect_count = predictions_df['is_defect'].sum()
-        
-        # Calculate standard deviation for last 25 cycles
-        last_25 = predictions_df.tail(25)
-        if len(last_25) > 1:
-            std_dev = (last_25['anomaly_score'] * 100).std()  # Convert to percentage
-        else:
-            std_dev = 0
-    else:
-        defect_pct = 0
-        alert_level = "NO DATA"
-        is_defect = False
-        total_predictions = 0
-        alert_counts = {}
-        defect_count = 0
-        std_dev = 0
-    
-    # Display current anomaly score
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        score_color = "#00c853" if alert_level == "LOW" else "#ffd600" if alert_level == "MEDIUM" else "#d50000" if alert_level == "HIGH" else "#888"
-        st.markdown(f"""
-        <div class="metric-card">
-            <span class="material-icons-outlined metric-icon">warning</span>
-            Defect Probability
-            <div class="metric-value" style="color: {score_color};">{defect_pct:.2f}%</div>
-            <div class="metric-desc">
-                {"0-4%: Low" if alert_level == "LOW" else "4-6%: Medium" if alert_level == "MEDIUM" else "6%+: High" if alert_level == "HIGH" else "No data"}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        status_icon = "check_circle" if alert_level == "LOW" else "warning" if alert_level == "MEDIUM" else "error" if alert_level == "HIGH" else "help"
-        st.markdown(f"""
-        <div class="metric-card">
-            <span class="material-icons-outlined metric-icon">{status_icon}</span>
-            Alert Level
-            <div class="metric-value">{alert_level}</div>
-            <div class="metric-desc">{'🔴 DEFECT!' if is_defect else 'Machine health status'}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        # Color code based on standard deviation (lower is more stable/better)
-        std_color = "#00c853" if std_dev < 2.0 else "#ffd600" if std_dev < 5.0 else "#d50000"
-        st.markdown(f"""
-        <div class="metric-card">
-            <span class="material-icons-outlined metric-icon">show_chart</span>
-            Std Dev (Last 25)
-            <div class="metric-value" style="color: {std_color};">{std_dev:.2f}%</div>
-            <div class="metric-desc">Process stability indicator</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.write("")
-    
-    # Plot anomaly score over time
-    if len(predictions_df) > 1:
-        chart_data = predictions_df[['timestamp', 'anomaly_score']].copy()
-        chart_data['defect_probability'] = chart_data['anomaly_score'] * 100  # Convert to percentage
-        chart_data = chart_data.set_index('timestamp')
-        
-        st.markdown("### Defect Probability Over Time")
-        st.line_chart(chart_data['defect_probability'], height=300)
-        
-        # Show alert level distribution with updated labels
-        st.markdown(f"""
-        <div style="color: #c8d3df; font-size: 14px; margin-top: 10px;">
-            <span style="color: #00c853;">● Low (0-4%): {alert_counts.get('LOW', 0)}</span> | 
-            <span style="color: #ffd600;">● Medium (4-6%): {alert_counts.get('MEDIUM', 0)}</span> | 
-            <span style="color: #d50000;">● High (6%+): {alert_counts.get('HIGH', 0)}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Show recent defects if any
-        recent_defects = predictions_df[predictions_df['is_defect'] == True].tail(5)
-        if len(recent_defects) > 0:
-            st.markdown("### Recent Defects Detected")
-            defects_display = recent_defects[['timestamp', 'anomaly_score', 'alert_level']].copy()
-            defects_display['anomaly_score'] = (defects_display['anomaly_score'] * 100).round(2)
-            defects_display.columns = ['Timestamp', 'Defect Probability (%)', 'Alert Level']
-            st.dataframe(defects_display, use_container_width=True, hide_index=True)
-    
-    else:
-        st.info("⏳ Waiting for anomaly predictions... Make sure realtime_anomaly_predictor.py is running.")
-    
-    # Show defect alert if detected
-    if is_defect:
-        st.markdown("""
-        <div style="background-color: #d50000; padding: 15px; border-radius: 10px; margin-top: 20px;">
-            <div style="color: white; font-size: 20px; font-weight: bold;">
-                ⚠️ DEFECT DETECTED IN LATEST CYCLE
-            </div>
-            <div style="color: white; font-size: 14px; margin-top: 5px;">
-                The ML model has identified anomalous patterns in the latest cycle. 
-                Immediate inspection recommended.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.write("Coming Soon")
 
     
     
-st_autorefresh(interval=5000, key="refresh")
+st_autorefresh(interval=10000, key="refresh")

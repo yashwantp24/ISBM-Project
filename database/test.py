@@ -6,7 +6,7 @@ import time
 client = OPCClient(OPC_SERVER_URL)
 client.connect()
 
-logger = CycleLogger(client, machine_id=60, tag_map=MACHINES)
+logger = CycleLogger(client, machine_id=23, tag_map=MACHINES)
 
 try:
     while True:

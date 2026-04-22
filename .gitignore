@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.Python
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+venv/
+.venv/
+env/
+ENV/
+
+# Secrets / config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Databases (may contain plant data)
+*.db
+*.sqlite
+*.sqlite3
+
+# ML artifacts
+*.pkl
+*.joblib
+*.h5
+*.onnx
+models/*.pkl
+
+# Generated reports & plots
+*.pdf
+anomaly_scores_*.png
+report/output/
+weekly_report.*
+
+# Logs
+*.log
+logs/
+fastapi/startup.log
+
+# Node / scada-dashboard
+node_modules/
+scada-dashboard/dist/
+scada-dashboard/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Claude Code worktrees & local settings
+.claude/worktrees/
+.claude/settings.local.json

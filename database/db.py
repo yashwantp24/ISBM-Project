@@ -1,17 +1,14 @@
 # db.py
 
-import psycopg2
 import json
 from datetime import datetime
 
+from database.connection import get_conn
+
+
 def get_connection():
-    return psycopg2.connect(
-        host="localhost",
-        dbname="postgres",
-        user="postgres",
-        password="admin",
-        port=54321
-    )
+    """Back-compat alias — prefer `database.connection.get_conn`."""
+    return get_conn()
 
 def insert_machine_row(machine_id, mold_id, data_dict):
     conn = get_connection()
