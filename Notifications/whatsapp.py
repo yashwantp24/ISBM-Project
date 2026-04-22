@@ -33,7 +33,6 @@ if not (account_sid and auth_token and twilio_to):
         "Missing Twilio configuration. Set TWILIO_ACCOUNT_SID, "
         "TWILIO_AUTH_TOKEN, and TWILIO_TO environment variables before running."
     )
-
 client_w = Client(account_sid, auth_token)
 
 
