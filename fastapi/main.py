@@ -139,6 +139,18 @@ MACHINE_TYPE_LAYOUTS = {
                             },
                         ],
                     },
+                    {
+                        "type": "timing_chart",
+                        "title": "Injection Timing Chart",
+                        "phases": [
+                            {"name": "Mold CL FA",  "tag": "Injection Mold CL FA", "color": "#4ea8de"},
+                            {"name": "Mold CL SD",  "subtract": ["Injection Mold CL", "Injection Mold CL FA"], "color": "#8a5cf6"},
+                            {"name": "Injection",   "tag": "Injection Time", "fixed": True, "color": "#22c55e"},
+                            {"name": "Cooling",     "tag": "Cooling Time",   "fixed": True, "color": "#2dd4bf"},
+                            {"name": "Mold OP SD",  "subtract": ["Injection Mold OP", "Injection Mold OP FA"], "color": "#f59e0b"},
+                            {"name": "Mold OP FA",  "tag": "Injection Mold OP FA", "color": "#ef4444"},
+                        ],
+                    },
                 ],
             },
             {

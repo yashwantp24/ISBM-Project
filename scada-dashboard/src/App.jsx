@@ -544,6 +544,354 @@ function ProductionRateChart({ cycles }) {
 }
 
 
+// ─── Timing Chart (Overlay + Heatmap) ───────────────────────────────────────
+// Per-cycle phase durations rendered as a Gantt-style overlay (last N cycles
+// stacked translucent, golden median outlined) + a deviation heatmap.
+//
+// `phases` config item shape:
+//   { name, color, tag }                     ← direct lookup in cycle.data
+//   { name, color, subtract: [a, b] }        ← computed as data[a] - data[b]
+//   { name, color, tag, fixed: true }        ← fixed/setpoint, drawn the same
+
+function deriveDuration(data, phase) {
+  if (phase.subtract) {
+    const a = Number(data?.[phase.subtract[0]]);
+    const b = Number(data?.[phase.subtract[1]]);
+    if (!isFinite(a) || !isFinite(b)) return null;
+    return Math.max(0, a - b);
+  }
+  const v = Number(data?.[phase.tag]);
+  return isFinite(v) ? v : null;
+}
+
+function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles }) {
+  const W = 1200;
+  const rowH = 32;
+  const TM = 12, BM = 26, LM = 140, RM = 20;
+  const plotH = phases.length * rowH;
+  const H = TM + plotH + BM;
+  const plotW = W - LM - RM;
+
+  const tMax = Math.max(
+    (golden._total || 1) * 1.35,
+    ...rows.map(r => r._cycleTotal || 0)
+  );
+  const xs = (t) => LM + (t / tMax) * plotW;
+
+  // x-axis ticks every ~1s, capped to ~10 labels
+  const step = Math.max(1, Math.ceil(tMax / 10));
+  const ticks = [];
+  for (let s = 0; s <= Math.floor(tMax); s += step) ticks.push(s);
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 11, color: "#8899aa", fontWeight: 600, letterSpacing: 0.5 }}>
+          OVERLAY · last {rows.length} cycle{rows.length !== 1 ? "s" : ""} stacked · golden = median of last 50
+        </div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: "#556677", marginRight: 4 }}>WINDOW:</span>
+          {[10, 20, 50, 100].filter(n => n <= totalCycles).map(n => (
+            <button
+              key={n}
+              onClick={() => setWindowN(n)}
+              style={{
+                padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                border: "none", cursor: "pointer", fontFamily: "'Montserrat', sans-serif",
+                background: windowN === n ? "#4ea8de" : "#1e2030",
+                color: windowN === n ? "#000" : "#667788",
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="none">
+        {phases.map((p, i) => {
+          const y = TM + i * rowH;
+          return (
+            <g key={p.name}>
+              <rect x={LM} y={y + 2} width={plotW} height={rowH - 6} fill="#0f1019" />
+              <text x={LM - 8} y={y + rowH / 2 + 4} textAnchor="end" fill="#c8d3df" fontSize="11" fontFamily="ui-monospace,Menlo,monospace">
+                {p.name}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* translucent cycles */}
+        {rows.map((r, ri) => (
+          <g key={ri}>
+            {r._phases.map((ph, i) => {
+              if (!ph.dur || ph.dur <= 0) return null;
+              const y = TM + i * rowH + 5;
+              const x0 = xs(ph.t0), x1 = xs(ph.t1);
+              return (
+                <rect
+                  key={i}
+                  x={x0} y={y}
+                  width={Math.max(1, x1 - x0)}
+                  height={rowH - 12}
+                  fill={ph.color}
+                  opacity={0.18}
+                />
+              );
+            })}
+          </g>
+        ))}
+
+        {/* golden outline */}
+        {(() => {
+          let cum = 0;
+          const out = [];
+          phases.forEach((p, i) => {
+            const dur = golden[p.name] || 0;
+            if (dur > 0) {
+              const y = TM + i * rowH + 5;
+              const x0 = xs(cum), x1 = xs(cum + dur);
+              out.push(
+                <rect
+                  key={p.name}
+                  x={x0} y={y}
+                  width={Math.max(1, x1 - x0)}
+                  height={rowH - 12}
+                  fill="none"
+                  stroke="#ffd166"
+                  strokeWidth="1.8"
+                />
+              );
+            }
+            cum += dur;
+          });
+          return out;
+        })()}
+
+        {/* x-axis */}
+        {ticks.map(s => {
+          const x = xs(s);
+          return (
+            <g key={s}>
+              <line x1={x} y1={TM + plotH} x2={x} y2={TM + plotH + 4} stroke="#2a3040" />
+              <text x={x} y={TM + plotH + 16} textAnchor="middle" fill="#667788" fontSize="10">{s}s</text>
+            </g>
+          );
+        })}
+        <text x={LM + plotW} y={TM + plotH + 16} textAnchor="end" fill="#445566" fontSize="10">
+          t since cycle-start (s)
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycles }) {
+  const W = 1200;
+  const rowH = 22;
+  const TM = 8, BM = 22, LM = 140, RM = 10;
+  const plotH = phases.length * rowH;
+  const H = TM + plotH + BM;
+  const plotW = W - LM - RM;
+  const N = rows.length;
+  const cellW = N > 0 ? plotW / N : 0;
+
+  const cellColor = (dev) => {
+    if (dev == null || isNaN(dev)) return "#1a1d28";
+    const a = Math.abs(dev);
+    if (a < 0.04) return "#4b5563";
+    if (dev > 0) {
+      if (dev > 0.35) return "#dc2626";
+      if (dev > 0.20) return "#f97316";
+      if (dev > 0.10) return "#f59e0b";
+      return "#b45309";
+    }
+    if (dev < -0.25) return "#1d4ed8";
+    if (dev < -0.12) return "#2563eb";
+    return "#3b82f6";
+  };
+
+  // x-axis tick positions
+  const tickIdxs = N > 0
+    ? Array.from(new Set([0, Math.floor(N * 0.25), Math.floor(N * 0.5), Math.floor(N * 0.75), N - 1]))
+    : [];
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 11, color: "#8899aa", fontWeight: 600, letterSpacing: 0.5 }}>
+          HEATMAP · % deviation from golden · {N} cycle{N !== 1 ? "s" : ""} (oldest → newest)
+        </div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: "#556677", marginRight: 4 }}>RANGE:</span>
+          {[100, 300, 500].filter(n => n <= totalCycles).map(n => (
+            <button
+              key={n}
+              onClick={() => setHeatmapN(n)}
+              style={{
+                padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                border: "none", cursor: "pointer", fontFamily: "'Montserrat', sans-serif",
+                background: heatmapN === n ? "#4ea8de" : "#1e2030",
+                color: heatmapN === n ? "#000" : "#667788",
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="none">
+        {phases.map((p, i) => {
+          const y = TM + i * rowH;
+          const g = golden[p.name] || 0;
+          return (
+            <g key={p.name}>
+              <text x={LM - 8} y={y + rowH / 2 + 4} textAnchor="end" fill="#c8d3df" fontSize="11" fontFamily="ui-monospace,Menlo,monospace">
+                {p.name}
+              </text>
+              {rows.map((r, c) => {
+                const v = r[p.name];
+                const dev = (v != null && g > 0) ? (v - g) / g : null;
+                const x = LM + c * cellW;
+                return (
+                  <rect
+                    key={c}
+                    x={x} y={y + 1}
+                    width={cellW + 0.5}
+                    height={rowH - 2}
+                    fill={cellColor(dev)}
+                  >
+                    <title>
+                      {`#${c + 1} · ${p.name}: ${v != null ? v.toFixed(2) + "s" : "—"}` +
+                        (dev != null ? `  (${(dev * 100).toFixed(0)}%)` : "") +
+                        `  · golden ${g.toFixed(2)}s`}
+                    </title>
+                  </rect>
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {tickIdxs.map((c, i) => {
+          const x = LM + c * cellW;
+          return (
+            <g key={i}>
+              <line x1={x} y1={TM + plotH} x2={x} y2={TM + plotH + 3} stroke="#2a3040" />
+              <text x={x} y={TM + plotH + 14} textAnchor="middle" fill="#667788" fontSize="10">#{c + 1}</text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 10, color: "#8899aa", flexWrap: "wrap" }}>
+        {[
+          ["#1d4ed8", "≤ -25%"],
+          ["#3b82f6", "-12 to -4%"],
+          ["#4b5563", "on-spec ±4%"],
+          ["#f59e0b", "+10 to +20%"],
+          ["#f97316", "+20 to +35%"],
+          ["#dc2626", "≥ +35%"],
+        ].map(([c, l]) => (
+          <span key={l} style={{ display: "inline-flex", alignItems: "center" }}>
+            <i style={{ display: "inline-block", width: 10, height: 10, background: c, borderRadius: 2, marginRight: 5 }} />
+            {l}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TimingChart({ title, cycles, phases }) {
+  const [windowN, setWindowN] = useState(20);
+  const [heatmapN, setHeatmapN] = useState(300);
+
+  // cycles arrives newest-first; reverse to chronological
+  const rows = useMemo(() => {
+    if (!cycles || !phases || cycles.length === 0 || phases.length === 0) return [];
+    const ordered = cycles.slice().reverse();
+    return ordered.map((c, idx) => {
+      const data = c.data || {};
+      const row = { _idx: idx, _timestamp: c.timestamp };
+      for (const p of phases) row[p.name] = deriveDuration(data, p);
+
+      let cum = 0;
+      row._phases = phases.map(p => {
+        const dur = row[p.name] ?? 0;
+        const ph = { name: p.name, color: p.color, t0: cum, t1: cum + dur, dur };
+        cum += dur;
+        return ph;
+      });
+      row._cycleTotal = cum;
+      return row;
+    });
+  }, [cycles, phases]);
+
+  const golden = useMemo(() => {
+    const window = rows.slice(-50);
+    const g = {};
+    for (const p of phases || []) {
+      const vals = window.map(r => r[p.name]).filter(v => v != null && v > 0).sort((a, b) => a - b);
+      g[p.name] = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
+    }
+    g._total = (phases || []).reduce((s, p) => s + (g[p.name] || 0), 0);
+    return g;
+  }, [rows, phases]);
+
+  const totalCycles = rows.length;
+  const overlayRows = rows.slice(-Math.min(windowN, totalCycles));
+  const heatmapRows = rows.slice(-Math.min(heatmapN, totalCycles));
+
+  if (!cycles || cycles.length === 0 || !phases || phases.length === 0) {
+    return (
+      <div style={{ ...S.card, minWidth: "100%" }}>
+        <div style={S.cardTitle}>{title || "Timing Chart"}</div>
+        <div style={{ color: "#667788", fontSize: 13, padding: "20px 0" }}>No cycle data available</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...S.card, minWidth: "100%", flex: "1 1 100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
+        <div style={S.cardTitle}>{title || "Timing Chart"}</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {phases.map(p => (
+            <span key={p.name} style={{ fontSize: 10, color: "#c8d3df", display: "inline-flex", alignItems: "center" }}>
+              <i style={{ display: "inline-block", width: 10, height: 10, background: p.color, borderRadius: 2, marginRight: 5 }} />
+              {p.name}{p.fixed ? " (SV)" : ""}
+            </span>
+          ))}
+          <span style={{ fontSize: 10, color: "#ffd166", display: "inline-flex", alignItems: "center" }}>
+            <i style={{ display: "inline-block", width: 14, height: 2, background: "#ffd166", marginRight: 5 }} />
+            golden
+          </span>
+        </div>
+      </div>
+
+      <TimingOverlay
+        rows={overlayRows}
+        phases={phases}
+        golden={golden}
+        windowN={windowN}
+        setWindowN={setWindowN}
+        totalCycles={totalCycles}
+      />
+      <TimingHeatmap
+        rows={heatmapRows}
+        phases={phases}
+        golden={golden}
+        heatmapN={heatmapN}
+        setHeatmapN={setHeatmapN}
+        totalCycles={totalCycles}
+      />
+    </div>
+  );
+}
+
+
 // ═════════════════════════════════════════════════════════════════════════════════
 // SIDEBAR
 // ═════════════════════════════════════════════════════════════════════════════════
@@ -1062,6 +1410,16 @@ function SectionRenderer({ section, tags, cycles, live, shifts, archive }) {
             return null;
           })}
         </div>
+      </>
+    );
+  }
+
+  if (section.type === "timing_chart") {
+    if (!cycles || cycles.length === 0) return null;
+    return (
+      <>
+        <div style={S.sectionTitle}><span style={S.icon}>◈</span> {section.title || "Timing Chart"}</div>
+        <TimingChart title={section.title} cycles={cycles} phases={section.phases || []} />
       </>
     );
   }
