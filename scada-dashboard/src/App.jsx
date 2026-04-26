@@ -784,10 +784,8 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
   // Cells and legend swatches both render from this list.
   const HEATMAP_BANDS = [
     { min: -Infinity, max: -0.25, color: "#1d4ed8", label: "≤ -25%" },
-    { min: -0.25,     max: -0.12, color: "#2563eb", label: "-25 to -12%" },
-    { min: -0.12,     max: -0.04, color: "#3b82f6", label: "-12 to -4%" },
-    { min: -0.04,     max:  0.04, color: "#4b5563", label: "on-spec ±4%" },
-    { min:  0.04,     max:  0.10, color: "#b45309", label: "+4 to +10%" },
+    { min: -0.25,     max: -0.10, color: "#3b82f6", label: "-25 to -10%" },
+    { min: -0.10,     max:  0.10, color: "#4b5563", label: "on-spec ±10%" },
     { min:  0.10,     max:  0.20, color: "#f59e0b", label: "+10 to +20%" },
     { min:  0.20,     max:  0.35, color: "#f97316", label: "+20 to +35%" },
     { min:  0.35,     max:  Infinity, color: "#dc2626", label: "≥ +35%" },
