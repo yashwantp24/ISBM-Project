@@ -591,7 +591,7 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <span style={{ fontSize: 10, color: "#556677", marginRight: 4 }}>WINDOW:</span>
-          {[10, 20, 50, 100].filter(n => n <= totalCycles).map(n => (
+          {[10, 20, 50, 100, 300, 500].filter(n => n <= totalCycles).map(n => (
             <button
               key={n}
               onClick={() => setWindowN(n)}
