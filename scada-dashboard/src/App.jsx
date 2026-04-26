@@ -567,10 +567,13 @@ function deriveDuration(data, phase) {
 function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles }) {
   const W = 1200;
   const rowH = 32;
-  const bandH = 20;            // cycle-time band height
-  const bandGap = 6;           // gap between band and first phase row
-  const bandTM = 12;           // top margin above band
-  const TM = bandTM + bandH + bandGap; // top of phase area
+  const bandH = 18;            // each cycle-time band height
+  const bandGapInner = 4;      // gap between actual band and computed band
+  const bandGap = 6;           // gap between bands and first phase row
+  const bandTM = 12;           // top margin above bands
+  const actualBandY = bandTM;
+  const computedBandY = bandTM + bandH + bandGapInner;
+  const TM = computedBandY + bandH + bandGap; // top of phase area
   const BM = 26, LM = 140, RM = 20;
   const plotH = phases.length * rowH;
   const H = TM + plotH + BM;
@@ -578,7 +581,9 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
 
   const tMax = Math.max(
     (golden._total || 1) * 1.35,
-    ...rows.map(r => r._cycleTotal || 0)
+    (golden._actualTotal || 0) * 1.1,
+    ...rows.map(r => r._cycleTotal || 0),
+    ...rows.map(r => r._cycleTimeActual || 0)
   );
   const xs = (t) => LM + (t / tMax) * plotW;
 
@@ -613,11 +618,44 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="none">
-        {/* cycle-time band */}
+        {/* actual machine Cycle Time band (PV from PLC) */}
         <g>
-          <rect x={LM} y={bandTM} width={plotW} height={bandH} fill="#161927" />
-          <text x={LM - 8} y={bandTM + bandH / 2 + 4} textAnchor="end" fill="#9fb4ff" fontSize="11" fontFamily="ui-monospace,Menlo,monospace">
-            Cycle Time
+          <rect x={LM} y={actualBandY} width={plotW} height={bandH} fill="#1a2233" />
+          <text x={LM - 8} y={actualBandY + bandH / 2 + 4} textAnchor="end" fill="#5ee2c0" fontSize="11" fontFamily="ui-monospace,Menlo,monospace">
+            Cycle Time (actual)
+          </text>
+          {rows.map((r, ri) => {
+            const total = r._cycleTimeActual || 0;
+            if (total <= 0) return null;
+            const x0 = xs(0), x1 = xs(total);
+            return (
+              <rect
+                key={ri}
+                x={x0} y={actualBandY + 3}
+                width={Math.max(1, x1 - x0)}
+                height={bandH - 6}
+                fill="#5ee2c0"
+                opacity={0.16}
+              />
+            );
+          })}
+          {golden._actualTotal > 0 && (
+            <rect
+              x={xs(0)} y={actualBandY + 3}
+              width={Math.max(1, xs(golden._actualTotal) - xs(0))}
+              height={bandH - 6}
+              fill="none"
+              stroke="#ffd166"
+              strokeWidth="1.8"
+            />
+          )}
+        </g>
+
+        {/* computed cycle-time band (sum of phases) */}
+        <g>
+          <rect x={LM} y={computedBandY} width={plotW} height={bandH} fill="#161927" />
+          <text x={LM - 8} y={computedBandY + bandH / 2 + 4} textAnchor="end" fill="#9fb4ff" fontSize="11" fontFamily="ui-monospace,Menlo,monospace">
+            Cycle Time (sum)
           </text>
           {rows.map((r, ri) => {
             const total = r._cycleTotal || 0;
@@ -626,7 +664,7 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
             return (
               <rect
                 key={ri}
-                x={x0} y={bandTM + 3}
+                x={x0} y={computedBandY + 3}
                 width={Math.max(1, x1 - x0)}
                 height={bandH - 6}
                 fill="#9fb4ff"
@@ -636,7 +674,7 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
           })}
           {golden._total > 0 && (
             <rect
-              x={xs(0)} y={bandTM + 3}
+              x={xs(0)} y={computedBandY + 3}
               width={Math.max(1, xs(golden._total) - xs(0))}
               height={bandH - 6}
               fill="none"
@@ -900,6 +938,9 @@ function TimingChart({ title, cycles, phases }) {
         return ph;
       });
       row._cycleTotal = cum;
+      // Actual machine Cycle Time PV (vs computed sum-of-phases above)
+      const ct = data["Cycle Time"];
+      row._cycleTimeActual = (typeof ct === "number" && ct > 0) ? ct : null;
       return row;
     });
   }, [cycles, phases]);
@@ -912,6 +953,9 @@ function TimingChart({ title, cycles, phases }) {
       g[p.name] = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
     }
     g._total = (phases || []).reduce((s, p) => s + (g[p.name] || 0), 0);
+    // golden actual cycle time = median of last 50 actual Cycle Time PVs
+    const actuals = window.map(r => r._cycleTimeActual).filter(v => v != null && v > 0).sort((a, b) => a - b);
+    g._actualTotal = actuals.length ? actuals[Math.floor(actuals.length / 2)] : 0;
     return g;
   }, [rows, phases]);
 
