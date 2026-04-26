@@ -765,6 +765,7 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
               {n}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
