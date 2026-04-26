@@ -567,7 +567,11 @@ function deriveDuration(data, phase) {
 function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles }) {
   const W = 1200;
   const rowH = 32;
-  const TM = 12, BM = 26, LM = 140, RM = 20;
+  const bandH = 20;            // cycle-time band height
+  const bandGap = 6;           // gap between band and first phase row
+  const bandTM = 12;           // top margin above band
+  const TM = bandTM + bandH + bandGap; // top of phase area
+  const BM = 26, LM = 140, RM = 20;
   const plotH = phases.length * rowH;
   const H = TM + plotH + BM;
   const plotW = W - LM - RM;
@@ -609,6 +613,39 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="none">
+        {/* cycle-time band */}
+        <g>
+          <rect x={LM} y={bandTM} width={plotW} height={bandH} fill="#161927" />
+          <text x={LM - 8} y={bandTM + bandH / 2 + 4} textAnchor="end" fill="#9fb4ff" fontSize="11" fontFamily="ui-monospace,Menlo,monospace">
+            Cycle Time
+          </text>
+          {rows.map((r, ri) => {
+            const total = r._cycleTotal || 0;
+            if (total <= 0) return null;
+            const x0 = xs(0), x1 = xs(total);
+            return (
+              <rect
+                key={ri}
+                x={x0} y={bandTM + 3}
+                width={Math.max(1, x1 - x0)}
+                height={bandH - 6}
+                fill="#9fb4ff"
+                opacity={0.14}
+              />
+            );
+          })}
+          {golden._total > 0 && (
+            <rect
+              x={xs(0)} y={bandTM + 3}
+              width={Math.max(1, xs(golden._total) - xs(0))}
+              height={bandH - 6}
+              fill="none"
+              stroke="#ffd166"
+              strokeWidth="1.8"
+            />
+          )}
+        </g>
+
         {phases.map((p, i) => {
           const y = TM + i * rowH;
           return (
