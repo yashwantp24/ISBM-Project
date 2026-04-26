@@ -686,7 +686,16 @@ function TimingOverlay({ rows, phases, golden, windowN, setWindowN, totalCycles 
   );
 }
 
-function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycles }) {
+function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycles, metric, setMetric }) {
+  // Precompute golden cumulative end-time per phase index
+  const goldenEnds = [];
+  {
+    let cum = 0;
+    for (const p of phases) {
+      cum += golden[p.name] || 0;
+      goldenEnds.push(cum);
+    }
+  }
   const W = 1200;
   const rowH = 22;
   const TM = 8, BM = 22, LM = 140, RM = 10;
@@ -720,10 +729,28 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontSize: 11, color: "#8899aa", fontWeight: 600, letterSpacing: 0.5 }}>
-          HEATMAP · % deviation from golden · {N} cycle{N !== 1 ? "s" : ""} (oldest → newest)
+          HEATMAP · {metric === "endOffset" ? "phase-end offset vs golden" : "phase duration vs golden"} · {N} cycle{N !== 1 ? "s" : ""} (oldest → newest)
         </div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: "#556677", marginRight: 4 }}>RANGE:</span>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: "#556677", marginRight: 4 }}>METRIC:</span>
+            {[["endOffset", "End offset"], ["duration", "Duration"]].map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => setMetric(k)}
+                style={{
+                  padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                  border: "none", cursor: "pointer", fontFamily: "'Montserrat', sans-serif",
+                  background: metric === k ? "#4ea8de" : "#1e2030",
+                  color: metric === k ? "#000" : "#667788",
+                }}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: "#556677", marginRight: 4 }}>RANGE:</span>
           {[100, 300, 500].filter(n => n <= totalCycles).map(n => (
             <button
               key={n}
@@ -752,7 +779,14 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
               </text>
               {rows.map((r, c) => {
                 const v = r[p.name];
-                const dev = (v != null && g > 0) ? (v - g) / g : null;
+                const phaseEnd = r._phases && r._phases[i] ? r._phases[i].t1 : null;
+                const gEnd = goldenEnds[i];
+                let dev = null;
+                if (metric === "endOffset") {
+                  dev = (phaseEnd != null && gEnd > 0) ? (phaseEnd - gEnd) / gEnd : null;
+                } else {
+                  dev = (v != null && g > 0) ? (v - g) / g : null;
+                }
                 const x = LM + c * cellW;
                 return (
                   <rect
@@ -763,9 +797,11 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
                     fill={cellColor(dev)}
                   >
                     <title>
-                      {`#${c + 1} · ${p.name}: ${v != null ? v.toFixed(2) + "s" : "—"}` +
-                        (dev != null ? `  (${(dev * 100).toFixed(0)}%)` : "") +
-                        `  · golden ${g.toFixed(2)}s`}
+                      {`#${c + 1} · ${p.name}` +
+                        (metric === "endOffset"
+                          ? `\nend ${phaseEnd != null ? phaseEnd.toFixed(2) + "s" : "—"} · golden end ${gEnd.toFixed(2)}s`
+                          : `\ndur ${v != null ? v.toFixed(2) + "s" : "—"} · golden ${g.toFixed(2)}s`) +
+                        (dev != null ? `  (${(dev * 100).toFixed(0)}%)` : "")}
                     </title>
                   </rect>
                 );
@@ -807,6 +843,7 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
 function TimingChart({ title, cycles, phases }) {
   const [windowN, setWindowN] = useState(20);
   const [heatmapN, setHeatmapN] = useState(300);
+  const [metric, setMetric] = useState("endOffset");
 
   // cycles arrives newest-first; reverse to chronological
   const rows = useMemo(() => {
@@ -886,6 +923,8 @@ function TimingChart({ title, cycles, phases }) {
         heatmapN={heatmapN}
         setHeatmapN={setHeatmapN}
         totalCycles={totalCycles}
+        metric={metric}
+        setMetric={setMetric}
       />
     </div>
   );
