@@ -780,19 +780,22 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
   const N = rows.length;
   const cellW = N > 0 ? plotW / N : 0;
 
+  // Single source of truth: ordered low -> high. dev falls in [min, max).
+  // Cells and legend swatches both render from this list.
+  const HEATMAP_BANDS = [
+    { min: -Infinity, max: -0.25, color: "#1d4ed8", label: "≤ -25%" },
+    { min: -0.25,     max: -0.12, color: "#2563eb", label: "-25 to -12%" },
+    { min: -0.12,     max: -0.04, color: "#3b82f6", label: "-12 to -4%" },
+    { min: -0.04,     max:  0.04, color: "#4b5563", label: "on-spec ±4%" },
+    { min:  0.04,     max:  0.10, color: "#b45309", label: "+4 to +10%" },
+    { min:  0.10,     max:  0.20, color: "#f59e0b", label: "+10 to +20%" },
+    { min:  0.20,     max:  0.35, color: "#f97316", label: "+20 to +35%" },
+    { min:  0.35,     max:  Infinity, color: "#dc2626", label: "≥ +35%" },
+  ];
   const cellColor = (dev) => {
     if (dev == null || isNaN(dev)) return "#1a1d28";
-    const a = Math.abs(dev);
-    if (a < 0.04) return "#4b5563";
-    if (dev > 0) {
-      if (dev > 0.35) return "#dc2626";
-      if (dev > 0.20) return "#f97316";
-      if (dev > 0.10) return "#f59e0b";
-      return "#b45309";
-    }
-    if (dev < -0.25) return "#1d4ed8";
-    if (dev < -0.12) return "#2563eb";
-    return "#3b82f6";
+    for (const b of HEATMAP_BANDS) if (dev >= b.min && dev < b.max) return b.color;
+    return "#1a1d28";
   };
 
   // x-axis tick positions
@@ -898,17 +901,10 @@ function TimingHeatmap({ rows, phases, golden, heatmapN, setHeatmapN, totalCycle
       </svg>
 
       <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 10, color: "#8899aa", flexWrap: "wrap" }}>
-        {[
-          ["#1d4ed8", "≤ -25%"],
-          ["#3b82f6", "-12 to -4%"],
-          ["#4b5563", "on-spec ±4%"],
-          ["#f59e0b", "+10 to +20%"],
-          ["#f97316", "+20 to +35%"],
-          ["#dc2626", "≥ +35%"],
-        ].map(([c, l]) => (
-          <span key={l} style={{ display: "inline-flex", alignItems: "center" }}>
-            <i style={{ display: "inline-block", width: 10, height: 10, background: c, borderRadius: 2, marginRight: 5 }} />
-            {l}
+        {HEATMAP_BANDS.map(b => (
+          <span key={b.label} style={{ display: "inline-flex", alignItems: "center" }}>
+            <i style={{ display: "inline-block", width: 10, height: 10, background: b.color, borderRadius: 2, marginRight: 5 }} />
+            {b.label}
           </span>
         ))}
       </div>
