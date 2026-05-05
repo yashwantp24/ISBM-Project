@@ -283,38 +283,6 @@ MACHINE_TYPE_LAYOUTS = {
                             {"label": "Rotary Table", "pvTag": "Rotation Table Temperature"},
                         ],
                     },
-                    {
-                        "type": "temp_bars",
-                        "title": "HR Blocks",
-                        "items": [
-                            {"label": f"HR Block {i}", "pvTag": f"HR Block PV {i}", "svTag": f"HR Block SV {i}"}
-                            for i in range(1, 5)
-                        ],
-                    },
-                    {
-                        "type": "temp_bars",
-                        "title": "Nozzle Bank 1",
-                        "items": [
-                            {"label": f"Nozzle 1{c}", "pvTag": f"Nozzle 1{c} PV", "svTag": f"Nozzle 1{c} SV"}
-                            for c in "ABCDEFGHIJKL"
-                        ],
-                    },
-                    {
-                        "type": "temp_bars",
-                        "title": "Nozzle Bank 2",
-                        "items": [
-                            {"label": f"Nozzle 2{c}", "pvTag": f"Nozzle 2{c} PV", "svTag": f"Nozzle 2{c} SV"}
-                            for c in "ABCDEFGHIJKL"
-                        ],
-                    },
-                    {
-                        "type": "temp_bars",
-                        "title": "H Pots",
-                        "items": [
-                            {"label": f"H Pot {i}", "pvTag": f"H Pot PV {i}", "svTag": f"H Pot SV {i}"}
-                            for i in range(1, 19)
-                        ],
-                    },
                 ],
             },
             {
