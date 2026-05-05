@@ -236,6 +236,218 @@ MACHINE_TYPE_LAYOUTS = {
         ],
     },
 
+    "70DPW-V4-Vision": {
+        "label": "70DPW V4 Vision — ISBM",
+        "tabs": [
+            {
+                "key": "general",
+                "label": "General",
+                "sections": [
+                    {
+                        "type": "metrics",
+                        "items": [
+                            {"tag": "Production Quantity", "title": "Production Count", "desc": "PLC register"},
+                            {"tag": "Bottle Quantity", "title": "Bottle Count", "desc": "Vision-counted"},
+                            {"tag": "Cycle Time", "title": "Cycle Time", "desc": "Current cycle", "unit": "s"},
+                            {"tag": "Screw RPM", "title": "Screw RPM"},
+                        ],
+                    },
+                    {"type": "live_production"},
+                    {
+                        "type": "charts",
+                        "items": [
+                            {
+                                "kind": "cycle",
+                                "title": "Cycle Time / V-P Time / Decomp Time",
+                                "dataKeys": ["Cycle Time", "V-P Time PV", "Decomp Time"],
+                                "colors": ["#4ea8de", "#c084fc", "#ffd600"],
+                            },
+                            {"kind": "production_rate"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "key": "temps",
+                "label": "Temperatures",
+                "sections": [
+                    {
+                        "type": "temp_bars",
+                        "items": [
+                            {"label": "Nozzle", "pvTag": "Barrel Nozzle PV", "svTag": "Barrel Nozzle SV"},
+                            {"label": "Front", "pvTag": "Barrel Front PV", "svTag": "Barrel Front SV"},
+                            {"label": "Middle", "pvTag": "Barrel Middle PV", "svTag": "Barrel Middle SV"},
+                            {"label": "Rear Front", "pvTag": "Barrel Rear Front PV", "svTag": "Barrel Rear Front SV"},
+                            {"label": "Rear Rear", "pvTag": "Barrel Rear Rear PV", "svTag": "Barrel Rear Rear SV"},
+                            {"label": "Oil", "pvTag": "Oil Temperature PV", "svTag": "Oil Temperature SV"},
+                            {"label": "Rotary Table", "pvTag": "Rotation Table Temperature"},
+                        ],
+                    },
+                    {
+                        "type": "temp_bars",
+                        "title": "HR Blocks",
+                        "items": [
+                            {"label": f"HR Block {i}", "pvTag": f"HR Block PV {i}", "svTag": f"HR Block SV {i}"}
+                            for i in range(1, 5)
+                        ],
+                    },
+                    {
+                        "type": "temp_bars",
+                        "title": "Nozzle Bank 1",
+                        "items": [
+                            {"label": f"Nozzle 1{c}", "pvTag": f"Nozzle 1{c} PV", "svTag": f"Nozzle 1{c} SV"}
+                            for c in "ABCDEFGHIJKL"
+                        ],
+                    },
+                    {
+                        "type": "temp_bars",
+                        "title": "Nozzle Bank 2",
+                        "items": [
+                            {"label": f"Nozzle 2{c}", "pvTag": f"Nozzle 2{c} PV", "svTag": f"Nozzle 2{c} SV"}
+                            for c in "ABCDEFGHIJKL"
+                        ],
+                    },
+                    {
+                        "type": "temp_bars",
+                        "title": "H Pots",
+                        "items": [
+                            {"label": f"H Pot {i}", "pvTag": f"H Pot PV {i}", "svTag": f"H Pot SV {i}"}
+                            for i in range(1, 19)
+                        ],
+                    },
+                ],
+            },
+            {
+                "key": "injection",
+                "label": "Injection",
+                "sections": [
+                    {
+                        "type": "metrics",
+                        "items": [
+                            {"tag": "Injection Time", "title": "Injection Time"},
+                            {"tag": "Cooling Time", "title": "Cooling Time"},
+                            {"tag": "Decomp Time", "title": "Decomp Time"},
+                            {"tag": "Shot Size", "title": "Shot Size"},
+                            {"tag": "V-P SV", "title": "V-P Setpoint"},
+                            {"tag": "V-P Time PV", "title": "V-P Time"},
+                            {"tag": "Injection Pressure", "title": "Injection Pressure"},
+                            {"tag": "Screw Charge Pressure", "title": "Screw Charge Pressure"},
+                        ],
+                    },
+                    {
+                        "type": "charts",
+                        "items": [
+                            {
+                                "kind": "cycle",
+                                "title": "Cycle Time / V-P Time",
+                                "dataKeys": ["Cycle Time", "V-P Time PV"],
+                                "colors": ["#4ea8de", "#c084fc"],
+                            },
+                        ],
+                    },
+                    {
+                        "type": "timing_chart",
+                        "title": "Injection Timing Chart",
+                        "phases": [
+                            {"name": "Mold CL Start", "tag": "Injection Mold CL Start", "color": "#4ea8de"},
+                            {"name": "Mold CL",       "tag": "Injection Mold CL",       "color": "#8a5cf6"},
+                            {"name": "Injection",     "tag": "Injection Time", "fixed": True, "color": "#22c55e"},
+                            {"name": "Cooling",       "tag": "Cooling Time",   "fixed": True, "color": "#2dd4bf"},
+                            {"name": "Mold OP Start", "tag": "Injection Mold OP Start", "color": "#f59e0b"},
+                            {"name": "Mold OP",       "tag": "Injection Mold OP",       "color": "#ef4444"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "key": "blow",
+                "label": "Blow",
+                "sections": [
+                    {
+                        "type": "metrics",
+                        "items": [
+                            {"tag": "Blow Time", "title": "Blow Time"},
+                            {"tag": "Primary Blow A", "title": "Primary Blow A"},
+                            {"tag": "Primary Blow B", "title": "Primary Blow B"},
+                            {"tag": "Secondary Blow A", "title": "Secondary Blow A"},
+                            {"tag": "Secondary Blow B", "title": "Secondary Blow B"},
+                            {"tag": "Air Pressure", "title": "Air Pressure"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "key": "mechanics",
+                "label": "Mechanics",
+                "sections": [
+                    {
+                        "type": "metric_group",
+                        "title": "Blow Mold / Core",
+                        "items": [
+                            {"tag": "Blow Mold C", "title": "Blow Mold C"},
+                            {"tag": "Blow Mold OP", "title": "Blow Mold OP"},
+                            {"tag": "Blow Mold M", "title": "Blow Mold M"},
+                            {"tag": "Blow Core DW", "title": "Blow Core DW"},
+                            {"tag": "Blow Core UP", "title": "Blow Core UP"},
+                            {"tag": "Blow Core Hold FW", "title": "Blow Core Hold FW"},
+                            {"tag": "Blow Core Hold BW", "title": "Blow Core Hold BW"},
+                        ],
+                    },
+                    {
+                        "type": "metric_group",
+                        "title": "Lip / Stretch / Bottom",
+                        "items": [
+                            {"tag": "Lip Mold CL", "title": "Lip Mold CL"},
+                            {"tag": "Lip Mold OP", "title": "Lip Mold OP"},
+                            {"tag": "Stretch Unit UP", "title": "Stretch Unit UP"},
+                            {"tag": "Stretch Unit DW", "title": "Stretch Unit DW"},
+                            {"tag": "Bottom UP", "title": "Bottom UP"},
+                            {"tag": "Bottom DW", "title": "Bottom DW"},
+                        ],
+                    },
+                    {
+                        "type": "metric_group",
+                        "title": "Plates / Pots / Cores",
+                        "items": [
+                            {"tag": "S Plate FW", "title": "S Plate FW"},
+                            {"tag": "S Plate BW", "title": "S Plate BW"},
+                            {"tag": "H Pot UP", "title": "H Pot UP"},
+                            {"tag": "H Pot DW", "title": "H Pot DW"},
+                            {"tag": "H Core UP", "title": "H Core UP"},
+                            {"tag": "H Core DW", "title": "H Core DW"},
+                            {"tag": "Lock Pin UP", "title": "Lock Pin UP"},
+                            {"tag": "Lock Pin DW", "title": "Lock Pin DW"},
+                            {"tag": "Eject UP", "title": "Eject UP"},
+                            {"tag": "Eject DW", "title": "Eject DW"},
+                            {"tag": "Main RAM FW", "title": "Main RAM FW"},
+                            {"tag": "Main RAM BW", "title": "Main RAM BW"},
+                            {"tag": "Rotart Table FWD", "title": "Rotary Table FWD"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "key": "pumps",
+                "label": "Pumps",
+                "sections": [
+                    {
+                        "type": "metrics",
+                        "items": [
+                            {"tag": "Pump 1 Monitor", "title": "Pump 1"},
+                            {"tag": "Pump 2 Monitor", "title": "Pump 2"},
+                            {"tag": "Pump 3 Monitor", "title": "Pump 3"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "key": "production",
+                "label": "Production",
+                "sections": [{"type": "production_dashboard"}],
+            },
+        ],
+    },
+
     "150DP": {
         "label": "150DP — ISBM",
         "tabs": [
