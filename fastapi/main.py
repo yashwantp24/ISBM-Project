@@ -53,7 +53,7 @@ from Notifications.notifs import check_notifications
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
-TRACKED_MACHINES = [1, 22, 23, 25, 26, 59, 60, 61, 62, 68]
+TRACKED_MACHINES = [1, 18, 19, 22, 23, 25, 26, 43, 48, 49, 50, 51,52, 57, 58, 59, 60, 61, 62, 65, 68]
 SUBSCRIPTION_INTERVAL_MS = 250
 WARMUP_SEC = 3
 ALERT_SWEEP_INTERVAL = 20  # seconds between alert sweeps (replaces alert_collector.py)
@@ -819,6 +819,52 @@ def fleet_alerts():
         return {"alerts": all_alerts, "count": len(all_alerts)}
     except Exception:
         return {"alerts": [], "count": 0}
+
+
+@app.get("/api/fleet/cycles", tags=["fleet"])
+def fleet_cycles():
+    """
+    Live cycle time + configured cycle limit for every tracked machine.
+    Cycle time is read from the OPC subscription cache.
+    """
+    results = []
+    for mid in TRACKED_MACHINES:
+        try:
+            info = information.get_machine(mid) or {"mold": 0, "cyc_limit": 0}
+            cyc_limit = info.get("cyc_limit") or 0
+
+            cycle_time = None
+            if _opc_client is not None:
+                values = _opc_client.read_machine(mid, MACHINES)
+                if values:
+                    raw = values.get("Cycle Time")
+                    try:
+                        cycle_time = float(raw) if raw is not None else None
+                    except (TypeError, ValueError):
+                        cycle_time = None
+
+            over_limit = bool(
+                cycle_time is not None
+                and cyc_limit
+                and cycle_time > cyc_limit
+            )
+
+            results.append({
+                "machine_id":  mid,
+                "cycle_time":  cycle_time,
+                "cycle_limit": cyc_limit,
+                "over_limit":  over_limit,
+            })
+        except Exception as e:
+            results.append({
+                "machine_id":  mid,
+                "cycle_time":  None,
+                "cycle_limit": 0,
+                "over_limit":  False,
+                "error":       str(e),
+            })
+
+    return {"machines": results, "count": len(results)}
 
 
 # ═════════════════════════════════════════════════════════════════════════════════
